@@ -40,15 +40,34 @@ class MyWebServer(socketserver.BaseRequestHandler):
         req_method = split_data[0].split()[0]
 
         if req_method != "GET":
-            self.request.send("405".encode('utf-8'))
-            return
+            response_proto = 'HTTP/1.1'
+            response_status = '405'
+            response_status_text = 'Method Not Allowed' # this can be random
 
-        self.serve_page(req_url)
+            # sending all this stuff
+            r = '%s %s %s\r\n' % (response_proto, response_status, response_status_text)
+            self.request.send(r.encode('utf-8'))
+
+        else:
+            self.serve_page(req_url)
 
     def serve_page(self, url):
         print("\n\nURL ==== " + url + '\n\n')
         if url == '/favicon.ico':
+            # this request URL comes through quite often but does not need to be dealt with
             return
+
+        if url.count("../") > 2:
+            response_proto = 'HTTP/1.1'
+            response_status = '404'
+            response_status_text = 'Not Found' # this can be random
+
+            # sending all this stuff
+            r = '%s %s %s\r\n' % (response_proto, response_status, response_status_text)
+            self.request.send(r.encode('utf-8'))
+            return
+
+
         #referencing: https://stackoverflow.com/questions/36122461/trying-to-send-http-response-from-low-level-socket-server
         local_file_path = self.file_path + url
         if os.path.exists(local_file_path):
@@ -79,10 +98,16 @@ class MyWebServer(socketserver.BaseRequestHandler):
                 self.request.sendall(bytearray("OK",'utf-8'))
 
         else:
-            self.request.send("404".encode('utf-8'))
+            response_proto = 'HTTP/1.1'
+            response_status = '404'
+            response_status_text = 'Page does not exist' # this can be random
+
+            # sending all this stuff
+            r = '%s %s %s\r\n' % (response_proto, response_status, response_status_text)
+            self.request.send(r.encode('utf-8'))
 
 if __name__ == "__main__":
-    HOST, PORT = "localhost", 8081
+    HOST, PORT = "localhost", 8080
 
     socketserver.TCPServer.allow_reuse_address = True
     # Create the server, binding to localhost on port 8080
