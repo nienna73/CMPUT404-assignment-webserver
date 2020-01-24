@@ -36,89 +36,94 @@ class MyWebServer(socketserver.BaseRequestHandler):
         print ("Got a request of: %s\n" % self.data.decode('utf-8'))
         decoded_data = self.data.decode('utf-8')
         split_data = decoded_data.split('\n')
-        print(f"\n\n\n{split_data[0]}\n\n\n")
         req_url = split_data[0].split()[1]
         req_method = split_data[0].split()[0]
 
         if req_method != "GET":
-            response_proto = 'HTTP/1.1'
-            response_status = '405'
-            response_status_text = 'Method Not Allowed' # this can be random
-
-            # sending all this stuff
-            r = '%s %s %s\r\n' % (response_proto, response_status, response_status_text)
-            self.request.send(r.encode('utf-8'))
-
+            self.handle_405()
         else:
             self.serve_page(req_url)
 
     def serve_page(self, url):
-        print("\n\nURL ==== " + url + '\n\n')
         if url == '/favicon.ico':
             # this request URL comes through quite often but does not need to be dealt with
             return
 
         if url.count("../") > 2:
             # the max folder depth we can go is 2, so don't allow anything deeper
-            response_proto = 'HTTP/1.1'
-            response_status = '404'
-            response_status_text = 'Not Found' # this can be random
-
-            # sending all this stuff
-            r = '%s %s %s\r\n' % (response_proto, response_status, response_status_text)
-            self.request.send(r.encode('utf-8'))
+            self.handle_404()
             return
-
-
-        #referencing: https://stackoverflow.com/questions/36122461/trying-to-send-http-response-from-low-level-socket-server
+            
         local_file_path = self.file_path + url
         if local_file_path.endswith('deep') or local_file_path.endswith('hardcode'):
             # initiate 301 redirect
-            response_proto = 'HTTP/1.1'
-            response_status = '301'
-            response_status_text = 'Moved Permanently'
-            location = url + '/'
-
-            # sending all this stuff
-            r = '%s %s %s \r\nLocation: %s\r\n' % (response_proto, response_status, response_status_text, location)
-            self.request.send(r.encode('utf-8'))
+            self.handle_301(url)
             return
 
         if os.path.exists(local_file_path):
             if local_file_path[-1] == '/':
                 local_file_path = local_file_path + "index.html"
+            self.handle_200(local_file_path)
+            return
         
-            with open(local_file_path) as f:
-                data = f.read()
-                response_headers = {
-                    'Content-Type': 'text/html; encoding=utf8' if ".html" in local_file_path else 'text/css; encoding=utf8',
-                    'Content-Length': len(data),
-                    'Connection': 'close',
-                }
-
-                response_headers_raw = ''.join('%s: %s\r\n' % (k, v) for k, v in response_headers.items())
-
-                response_proto = 'HTTP/1.1'
-                response_status = '200'
-                response_status_text = 'OK' # this can be random
-
-                # sending all this stuff
-                r = '%s %s %s\r\n' % (response_proto, response_status, response_status_text)
-                self.request.send(r.encode('utf-8'))
-                self.request.send(response_headers_raw.encode('utf-8'))
-                self.request.send('\r\n'.encode('utf-8')) # to separate headers from body
-                self.request.send(data.encode('utf-8'))
-
-                self.request.sendall(bytearray("OK",'utf-8'))
-
         else:
+            self.handle_404()
+            return
+
+    def handle_405(self):
+        response_proto = 'HTTP/1.1'
+        response_status = '405'
+        response_status_text = 'Method Not Allowed' # this can be random
+
+        # sending all this stuff
+        r = '%s %s %s\r\n' % (response_proto, response_status, response_status_text)
+        self.request.send(r.encode('utf-8'))
+
+    def handle_404(self):
+        response_proto = 'HTTP/1.1'
+        response_status = '404'
+        response_status_text = 'Not Found' # this can be random
+
+        # sending all this stuff
+        r = '%s %s %s\r\n' % (response_proto, response_status, response_status_text)
+        self.request.send(r.encode('utf-8'))
+        return
+
+    def handle_301(self, url):
+        response_proto = 'HTTP/1.1'
+        response_status = '301'
+        response_status_text = 'Moved Permanently'
+        location = url + '/'
+
+        # sending all this stuff
+        r = '%s %s %s \r\nLocation: %s\r\n' % (response_proto, response_status, response_status_text, location)
+        self.request.send(r.encode('utf-8'))
+        return
+    
+    def handle_200(self, file_path):
+        # referencing: https://stackoverflow.com/questions/36122461/trying-to-send-http-response-from-low-level-socket-server
+        with open(file_path) as f:
+            data = f.read()
+            response_headers = {
+                'Content-Type': 'text/html; encoding=utf8' if ".html" in file_path else 'text/css; encoding=utf8',
+                'Content-Length': len(data),
+                'Connection': 'close',
+            }
+
+            response_headers_raw = ''.join('%s: %s\r\n' % (k, v) for k, v in response_headers.items())
+
             response_proto = 'HTTP/1.1'
-            response_status = '404'
-            response_status_text = 'Page does not exist' # this can be random
+            response_status = '200'
+            response_status_text = 'OK' # this can be random
 
             # sending all this stuff
             r = '%s %s %s\r\n' % (response_proto, response_status, response_status_text)
             self.request.send(r.encode('utf-8'))
+            self.request.send(response_headers_raw.encode('utf-8'))
+            self.request.send('\r\n'.encode('utf-8')) # to separate headers from body
+            self.request.send(data.encode('utf-8'))
+
+            self.request.sendall(bytearray("OK",'utf-8'))
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
