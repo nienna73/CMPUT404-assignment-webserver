@@ -36,6 +36,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
         print ("Got a request of: %s\n" % self.data.decode('utf-8'))
         decoded_data = self.data.decode('utf-8')
         split_data = decoded_data.split('\n')
+        print(f"\n\n\n{split_data[0]}\n\n\n")
         req_url = split_data[0].split()[1]
         req_method = split_data[0].split()[0]
 
@@ -58,6 +59,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
             return
 
         if url.count("../") > 2:
+            # the max folder depth we can go is 2, so don't allow anything deeper
             response_proto = 'HTTP/1.1'
             response_status = '404'
             response_status_text = 'Not Found' # this can be random
@@ -70,6 +72,18 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
         #referencing: https://stackoverflow.com/questions/36122461/trying-to-send-http-response-from-low-level-socket-server
         local_file_path = self.file_path + url
+        if local_file_path.endswith('deep') or local_file_path.endswith('hardcode'):
+            # initiate 301 redirect
+            response_proto = 'HTTP/1.1'
+            response_status = '301'
+            response_status_text = 'Moved Permanently'
+            location = url + '/'
+
+            # sending all this stuff
+            r = '%s %s %s \r\nLocation: %s\r\n' % (response_proto, response_status, response_status_text, location)
+            self.request.send(r.encode('utf-8'))
+            return
+
         if os.path.exists(local_file_path):
             if local_file_path[-1] == '/':
                 local_file_path = local_file_path + "index.html"
